@@ -1,0 +1,76 @@
+﻿<Window x:Class="CViewer.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:hx="http://helix-toolkit.org/wpf/SharpDX"
+        xmlns:local="clr-namespace:CViewer" xmlns:cp="clr-namespace:ColorPicker;assembly=ColorPicker"
+        mc:Ignorable="d"
+        Title="CViewer" Height="600" Width="800">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="120"/>
+        </Grid.ColumnDefinitions>
+        <hx:Viewport3DX x:Name="Hv3dMain" EffectsManager="{Binding EffectsManager}" Camera="{Binding Camera}" MSAA="Eight" ShowCameraTarget="True"
+                        ShowCoordinateSystem="True" ShowFrameRate="True" ShowViewCube="False" ShowTriangleCountInfo="True"
+                        IsCoordinateSystemMoverEnabled="False" IsMoveEnabled="True" ChangeFieldOfViewCursor="ScrollNS" 
+                        RotateAroundMouseDownPoint="True" CameraRotationMode="Turnball" ZoomAroundMouseDownPoint="True"
+                        Grid.ColumnSpan="2" Background="White" MouseDoubleClick="Hv3dMain_MouseDoubleClick">
+            <hx:DirectionalLight3D Direction="{Binding Camera.LookDirection}" Color="LightGray"/>
+            <hx:AmbientLight3D Color="Gray"/>
+            <hx:MeshGeometryModel3D Geometry="{Binding Geometry}" Material="{Binding Material}" RenderWireframe="{Binding IsChecked, ElementName=CbxWireframe}" WireframeColor="Black"/>
+        </hx:Viewport3DX>
+        <Grid Height="200" HorizontalAlignment="Left" Margin="18,0,0,0" Background="#19FFFFFF">
+            <Grid.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="最大值颜色">
+                        <cp:SquarePicker x:Name="SpkTop" Width="200" Height="200" HorizontalAlignment="Left" Margin="72,0,0,0"
+                                         ColorChanged="SpkTop_ColorChanged" SelectedColor="DeepPink"/>
+                    </MenuItem>
+                    <MenuItem Header="中值颜色">
+                        <cp:SquarePicker x:Name="SpkMiddle" Width="200" Height="200" HorizontalAlignment="Left" Margin="72,0,0,0"
+                                         ColorChanged="SpkMiddle_ColorChanged" SelectedColor="Gold"/>
+                    </MenuItem>
+                    <MenuItem Header="最小值颜色">
+                        <cp:SquarePicker x:Name="SpkBottom" Width="200" Height="200" HorizontalAlignment="Left" Margin="72,0,0,0"
+                                         ColorChanged="SpkBottom_ColorChanged" SelectedColor="Lime"/>
+                    </MenuItem>
+                </ContextMenu>
+            </Grid.ContextMenu>
+            <Rectangle Height="200" Width="20" HorizontalAlignment="Left">
+                <Rectangle.Fill>
+                    <LinearGradientBrush StartPoint="1,0" EndPoint="1,1">
+                        <LinearGradientBrush.GradientStops>
+                            <GradientStop Offset="0" Color="{Binding SelectedColor, ElementName=SpkTop}"/>
+                            <GradientStop Offset="0.5" Color="{Binding SelectedColor, ElementName=SpkMiddle}"/>
+                            <GradientStop Offset="1" Color="{Binding SelectedColor, ElementName=SpkBottom}"/>
+                        </LinearGradientBrush.GradientStops>
+                    </LinearGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
+            <Line X1="0" Y1="0" X2="50" Y2="0" Stroke="Black" />
+            <Line X1="0" Y1="0" X2="20" Y2="0" Stroke="Black" Margin="0,40,0,0" />
+            <Line X1="0" Y1="0" X2="20" Y2="0" Stroke="Black" Margin="0,80,0,0" />
+            <Line X1="0" Y1="0" X2="20" Y2="0" Stroke="Black" Margin="0,120,0,0" />
+            <Line X1="0" Y1="0" X2="20" Y2="0" Stroke="Black" Margin="0,160,0,0"  />
+            <Line X1="0" Y1="0" X2="50" Y2="0" Stroke="Black" VerticalAlignment="Bottom" />
+            <TextBox x:Name="TbxMax" Margin="22,3,5,0" MinWidth="28" Height="20" VerticalAlignment="Top" HorizontalAlignment="Left"
+                     KeyUp="TbxMax_KeyUp" LostFocus="TbxMax_LostFocus" BorderBrush="{x:Null}"/>
+            <TextBlock x:Name="TbkMiddle" VerticalAlignment="Center" Margin="22,0,5,0"/>
+            <TextBox x:Name="TbxMin" VerticalAlignment="Bottom" Margin="22,0,5,3" HorizontalAlignment="Left" MinWidth="28" Height="20"
+                     KeyUp="TbxMin_KeyUp" LostFocus="TbxMin_LostFocus" BorderBrush="{x:Null}"/>
+        </Grid>
+        <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Bottom" Margin="10">
+            <Button x:Name="BtnInput" Height="20" Margin="5" Content="导入模型" Click="BtnInput_Click"/>
+            <CheckBox x:Name="CbxWireframe" Content="显示线框" Margin="5"/>
+            <ComboBox x:Name="CmbCuvType" Height="20" Margin="5" SelectedIndex="0" HorizontalContentAlignment="Center" IsEnabled="False">
+                <ComboBoxItem Content="高斯曲率"/>
+                <ComboBoxItem Content="平均曲率"/>
+                <ComboBoxItem Content="主曲率Min"/>
+                <ComboBoxItem Content="主曲率Max"/>
+            </ComboBox>
+            <Button x:Name="BtnConfirm" Height="20" Margin="5" Content="计算曲率" Click="BtnConfirm_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

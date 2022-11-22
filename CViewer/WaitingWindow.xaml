@@ -1,0 +1,14 @@
+﻿<Window x:Class="CViewer.WaitingWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:CViewer"
+        mc:Ignorable="d"
+        Title="Waiting" Height="82" Width="300" WindowStyle="None" WindowStartupLocation="CenterOwner"  ResizeMode="NoResize">
+    <Border BorderThickness="1" BorderBrush="Black">
+        <Grid>
+            <ProgressBar IsIndeterminate="True" Foreground="DodgerBlue" Margin="30,20,30,40" />
+            <TextBlock x:Name="tbkDot" Text=""  Height="21" Margin="80,0,0,13" VerticalAlignment="Bottom" HorizontalAlignment="Left" />
+        </Grid>
+    </Border></Window>

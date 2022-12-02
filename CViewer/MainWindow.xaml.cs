@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -28,7 +29,7 @@ namespace CViewer
     public partial class MainWindow : Window
     {
         WaitingWindow WaitingDoneWindow;
-        DMesh3 OriginalMeshes;
+        DMesh3 OriginalMesh;
         MainViewModel ViewModel = new MainViewModel();
 
         private Color TopColor = Brushes.DeepPink.Color;
@@ -64,21 +65,21 @@ namespace CViewer
                     {
                         if (result.Result.code == IOCode.Ok)
                         {
-                            OriginalMeshes = builder.Meshes.First();
+                            OriginalMesh = builder.Meshes.First();
                         }
-                        MeshNormals.QuickCompute(OriginalMeshes);
-                        Vector3Collection points = new Vector3Collection(OriginalMeshes.Vertices().ToList().ConvertAll(
+                        MeshNormals.QuickCompute(OriginalMesh);
+                        Vector3Collection points = new Vector3Collection(OriginalMesh.Vertices().ToList().ConvertAll(
                             v => new Vector3(Convert.ToSingle(v.x), Convert.ToSingle(v.y), Convert.ToSingle(v.z))));
                         IntCollection triangleIndices = new IntCollection();
                         Color4Collection colors = new Color4Collection();
-                        Vector3Collection normals = new Vector3Collection(OriginalMeshes.NormalsBuffer.Count() / 3);
-                        int NormalsCount = OriginalMeshes.NormalsBuffer.Count() / 3;
+                        Vector3Collection normals = new Vector3Collection(OriginalMesh.NormalsBuffer.Count() / 3);
+                        int NormalsCount = OriginalMesh.NormalsBuffer.Count() / 3;
                         for (int i = 0; i < NormalsCount; i++)
                         {
-                            normals.Add(new Vector3(OriginalMeshes.NormalsBuffer[i * 3], OriginalMeshes.NormalsBuffer[i * 3 + 1], OriginalMeshes.NormalsBuffer[i * 3 + 2]));
+                            normals.Add(new Vector3(OriginalMesh.NormalsBuffer[i * 3], OriginalMesh.NormalsBuffer[i * 3 + 1], OriginalMesh.NormalsBuffer[i * 3 + 2]));
                         }
 
-                        foreach (Index3i index3 in OriginalMeshes.Triangles())
+                        foreach (Index3i index3 in OriginalMesh.Triangles())
                         {
                             triangleIndices.Add(index3.a);
                             triangleIndices.Add(index3.b);
@@ -94,7 +95,7 @@ namespace CViewer
                         ViewModel.Geometry = geometry;
                         ViewModel.Material = PhongMaterials.MediumGray;
                         ResetCamera(geometry.Bound);
-
+                        TbkTitle.Text = "";
                         WaitingDoneWindow.Close();
                     }
                     else if (result.IsFaulted && result.Exception != null)
@@ -115,70 +116,214 @@ namespace CViewer
 
         private void UpdateView()
         {
-            switch (CmbCuvType.SelectedIndex)
-            {
-                case 0:
-                    DrawGaussianCurvature();
-                    break;
-                case 1:
-                    break;
-                case 2:
-                    break;
-                default:
-                    break;
-            }
-        }
-
-        void DrawGaussianCurvature()
-        {
-            if (OriginalMeshes == null)
+            if (OriginalMesh == null)
             {
                 return;
             }
-            List<double> Curvatures = new List<double>(OriginalMeshes.VertexCount);
-            var Vertices = OriginalMeshes.Vertices();
-            for (int i = 0; i < OriginalMeshes.VertexCount; i++)
+
+            WaitingDoneWindow = new WaitingWindow("正在计算曲率，请等待");
+            WaitingDoneWindow.Owner = this;
+            TbkTitle.Text = CmbCuvType.Text;
+            int SelectedIndex = CmbCuvType.SelectedIndex;
+            Task.Run(() =>
             {
-                List<int> Tris = new List<int>();
-                if (OriginalMeshes.GetVtxTriangles(i, Tris, false) == MeshResult.Ok)
+                switch (SelectedIndex)
                 {
+                    case 0:
+                        return GetGaussianCurvature(OriginalMesh);
+                    case 1:
+                        return GetMeanCurvature(OriginalMesh);
+                    case 2:
+                        return GetMaxPrincipalCurvature(OriginalMesh);
+                    case 3:
+                        return GetMinPrincipalCurvature(OriginalMesh);
+                    default:
+                        return new List<double>();
+                }
+            }).ContinueWith((result) =>
+            {
+                if (result.IsCompleted)
+                {
+                    DrawCurvature(result.Result);
+                    WaitingDoneWindow.Close();
+                }
+                else if (result.IsFaulted && result.Exception != null)
+                {
+                    MessageBox.Show(result.Exception.Message);
+                }
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+            WaitingDoneWindow.ShowDialog();
+        }
 
-                    double SumAngle = 0;
-                    double SumArea = 0;
-                    Vector3d center = OriginalMeshes.GetVertex(i);
-                    foreach (var tri in Tris)
+        List<double> GetGaussianCurvature(DMesh3 mesh)
+        {
+            if (mesh == null)
+            {
+                return null;
+            }
+            List<double> Curvatures = new List<double>(mesh.VertexCount);
+            foreach (var i in mesh.VertexIndices())
+            {
+                if (mesh.IsBoundaryVertex(i) == false)
+                {
+                    List<int> Tris = new List<int>();
+                    if (mesh.GetVtxTriangles(i, Tris, false) == MeshResult.Ok)
                     {
-                        Vector3d v1, v2;
-                        if (OriginalMeshes.GetTriVertex(tri, 0) == center)
+
+                        double SumAngle = 0;
+                        double SumArea = 0;
+                        Vector3d center = mesh.GetVertex(i);
+                        foreach (var tri in Tris)
                         {
-                            v1 = OriginalMeshes.GetTriVertex(tri, 1) - center;
-                            v2 = OriginalMeshes.GetTriVertex(tri, 2) - center;
-                        }
-                        else if (OriginalMeshes.GetTriVertex(tri, 1) == center)
-                        {
-                            v1 = OriginalMeshes.GetTriVertex(tri, 0) - center;
-                            v2 = OriginalMeshes.GetTriVertex(tri, 2) - center;
-                        }
-                        else
-                        {
-                            v1 = OriginalMeshes.GetTriVertex(tri, 0) - center;
-                            v2 = OriginalMeshes.GetTriVertex(tri, 1) - center;
+                            Vector3d v1, v2;
+                            if (mesh.GetTriVertex(tri, 0) == center)
+                            {
+                                v1 = mesh.GetTriVertex(tri, 1) - center;
+                                v2 = mesh.GetTriVertex(tri, 2) - center;
+                            }
+                            else if (mesh.GetTriVertex(tri, 1) == center)
+                            {
+                                v1 = mesh.GetTriVertex(tri, 0) - center;
+                                v2 = mesh.GetTriVertex(tri, 2) - center;
+                            }
+                            else
+                            {
+                                v1 = mesh.GetTriVertex(tri, 0) - center;
+                                v2 = mesh.GetTriVertex(tri, 1) - center;
+                            }
+
+                            SumAngle += Vector3d.AngleR(v1.Normalized, v2.Normalized);
+                            SumArea += mesh.GetTriArea(tri);
                         }
 
-                        SumAngle += Vector3d.AngleR(v1.Normalized, v2.Normalized);
-                        SumArea += OriginalMeshes.GetTriArea(tri);
+                        Curvatures.Add((2 * Math.PI - SumAngle) / (SumArea / 3));
+
+                        //参考公式：
+                        //https://www.cnblogs.com/tongj1981/archive/2008/05/16/1200231.html
+                        //https://computergraphics.stackexchange.com/questions/1718/what-is-the-simplest-way-to-compute-principal-curvature-for-a-mesh-triangle
                     }
-                    Curvatures.Add((2 * Math.PI - SumAngle) / (SumArea / 3));
-                    //Curvatures.Add((2 * Math.PI - SumAngle) / (2 * Math.PI));
-
-                    //参考公式：
-                    //https://www.cnblogs.com/tongj1981/archive/2008/05/16/1200231.html
-                    //https://computergraphics.stackexchange.com/questions/1718/what-is-the-simplest-way-to-compute-principal-curvature-for-a-mesh-triangle
+                    else
+                    {
+                        Curvatures.Add(0);
+                    }
                 }
                 else
                 {
                     Curvatures.Add(0);
                 }
+            }
+            return Curvatures;
+        }
+
+        List<double> GetMeanCurvature(DMesh3 mesh)
+        {
+            if (mesh == null)
+            {
+                return null;
+            }
+            List<double> Curvatures = new List<double>(mesh.VertexCount);
+            foreach (var i in mesh.VertexIndices())
+            {
+                if (mesh.IsBoundaryVertex(i) == false)
+                {
+                    Vector3d SumVector = Vector3d.Zero;
+                    double SumArea = 0;
+
+                    Vector3d VectorI = mesh.GetVertex(i);
+                    var Edges = mesh.VtxEdgesItr(i);
+                    foreach (var edge in Edges)
+                    {
+                        int j = mesh.edge_other_v(edge, i);
+                        Vector3d VectorJ = mesh.GetVertex(j);
+
+                        var tris = mesh.GetEdgeT(edge);
+
+                        var triAvs = mesh.GetTriangle(tris.a).array.ToList();
+                        triAvs.Remove(i);
+                        triAvs.Remove(j);
+                        Vector3d VectorA = mesh.GetVertex(triAvs[0]);
+
+                        var triBvs = mesh.GetTriangle(tris.b).array.ToList();
+                        triBvs.Remove(i);
+                        triBvs.Remove(j);
+                        Vector3d VectorB = mesh.GetVertex(triBvs[0]);
+
+                        double cotA = 1 / Math.Tan(Vector3d.AngleR(VectorI - VectorA, VectorJ - VectorA));
+                        double cotB = 1 / Math.Tan(Vector3d.AngleR(VectorI - VectorB, VectorJ - VectorB));
+
+                        if (double.IsInfinity(cotA) || double.IsNaN(cotA) || double.IsInfinity(cotB) || double.IsNaN(cotB))
+                        {
+                            continue;
+                        }
+
+                        SumVector += (cotA + cotB) * (VectorJ - VectorI);
+                        SumArea += mesh.GetTriArea(tris.a);
+                    }
+                    Curvatures.Add((SumVector / (2 * (SumArea / 3))).Length / 2);
+                }
+                else
+                {
+                    Curvatures.Add(0);
+                }
+
+                //参考公式：
+                //https://blog.csdn.net/chenbb1989/article/details/124363979
+                //http://rodolphe-vaillant.fr/entry/33/curvature-of-a-triangle-mesh-definition-and-computation
+            }
+            return Curvatures;
+        }
+
+        List<double> GetMaxPrincipalCurvature(DMesh3 mesh)
+        {
+            var gc = GetGaussianCurvature(mesh);
+            var mc = GetMeanCurvature(mesh);
+            if (gc == null || mc == null)
+            {
+                return new List<double>();
+            }
+            if (gc.Count != mc.Count)
+            {
+                return new List<double>();
+            }
+            List<double> result = new List<double>(gc.Count);
+            for (int i = 0; i < gc.Count; i++)
+            {
+                var temp = mc[i] * mc[i] - gc[i];
+                result.Add(mc[i] + Math.Sqrt(temp < 0 ? 0 : temp));
+            }
+            return result;
+        }
+
+        List<double> GetMinPrincipalCurvature(DMesh3 mesh)
+        {
+            var gc = GetGaussianCurvature(mesh);
+            var mc = GetMeanCurvature(mesh);
+            if (gc == null || mc == null)
+            {
+                return new List<double>();
+            }
+            if (gc.Count != mc.Count)
+            {
+                return new List<double>();
+            }
+            List<double> result = new List<double>(gc.Count);
+            for (int i = 0; i < gc.Count; i++)
+            {
+                var temp = mc[i] * mc[i] - gc[i];
+                result.Add(mc[i] - Math.Sqrt(temp < 0 ? 0 : temp));
+            }
+            return result;
+        }
+
+        void DrawCurvature( List<double> Curvatures)
+        {
+            if (Curvatures == null)
+            {
+                return;
+            }
+            if (Curvatures.Count == 0)
+            {
+                return;
             }
 
             //设置展示范围
@@ -199,29 +344,42 @@ namespace CViewer
             });
 
             //曲率值归一化[0,1]
-            double CurMin = Curvatures.Min();
+            double CurMin;
+            if (MinValue == double.MinValue)
+            {
+                CurMin = Curvatures.Min();
+            }
+            else
+            {
+                CurMin = MinValue;
+            }
             TbxMin.Text = CurMin.ToString("F3");
-            double CurMax = Curvatures.Max();
+            double CurMax;
+            if (MaxValue == double.MaxValue)
+            {
+                CurMax = Curvatures.Max();
+            }
+            else
+            {
+                CurMax = MaxValue;
+            }
             TbxMax.Text = CurMax.ToString("F3");
-            //double AbsMax = Math.Max(Math.Abs(CurMin), Math.Abs(CurMax));
             double CurRange = CurMax - CurMin;
             TbkMiddle.Text = (CurMin + CurRange / 2).ToString("F3");
             Curvatures = Curvatures.ConvertAll(c => (c - CurMin) / CurRange);
 
-            //TODO:直方图均值化
-
-            Vector3Collection points = new Vector3Collection(OriginalMeshes.Vertices().ToList().ConvertAll(
+            Vector3Collection points = new Vector3Collection(OriginalMesh.Vertices().ToList().ConvertAll(
                 v => new Vector3(Convert.ToSingle(v.x), Convert.ToSingle(v.y), Convert.ToSingle(v.z))));
             IntCollection triangles = new IntCollection();
-            Vector3Collection normals = new Vector3Collection(OriginalMeshes.NormalsBuffer.Count() / 3);
-            int NormalsCount = OriginalMeshes.NormalsBuffer.Count() / 3;
+            Vector3Collection normals = new Vector3Collection(OriginalMesh.NormalsBuffer.Count() / 3);
+            int NormalsCount = OriginalMesh.NormalsBuffer.Count() / 3;
             for (int i = 0; i < NormalsCount; i++)
             {
-                normals.Add(new Vector3(OriginalMeshes.NormalsBuffer[i * 3], OriginalMeshes.NormalsBuffer[i * 3 + 1], OriginalMeshes.NormalsBuffer[i * 3 + 2]));
+                normals.Add(new Vector3(OriginalMesh.NormalsBuffer[i * 3], OriginalMesh.NormalsBuffer[i * 3 + 1], OriginalMesh.NormalsBuffer[i * 3 + 2]));
             }
 
             List<Color4> colors = new List<Color4>();
-            foreach (Index3i index3 in OriginalMeshes.Triangles())
+            foreach (Index3i index3 in OriginalMesh.Triangles())
             {
                 triangles.Add(index3.a);
                 triangles.Add(index3.b);
@@ -229,7 +387,7 @@ namespace CViewer
             }
 
             colors = Curvatures.ConvertAll(c => {
-                if (c<0.5)
+                if (c < 0.5)
                 {
                     float r = Convert.ToSingle(((MiddleColor.R - BottomColor.R) / 0.5 * c + BottomColor.R)) / 255;
                     float g = Convert.ToSingle(((MiddleColor.G - BottomColor.G) / 0.5 * c + BottomColor.G)) / 255;
@@ -254,8 +412,7 @@ namespace CViewer
             ViewModel.Geometry.ClearAllGeometryData();
             ViewModel.Geometry = geometry;
             ViewModel.Material = new VertColorMaterial();
-            ResetCamera(geometry.Bound);
-
+            //ResetCamera(geometry.Bound);
         }
 
         void ResetCamera(BoundingBox bound)
@@ -301,72 +458,66 @@ namespace CViewer
         {
             if (e.Key == Key.Enter)
             {
-                TbxMax_LostFocus(null, null);
+                double.TryParse(TbxMax.Text, out double input);
+                double.TryParse(TbxMin.Text, out double min);
+                if (input > min)
+                {
+                    MaxValue = input;
+                    MaxTemp = input;
+                    UpdateView();
+                }
+                else
+                {
+                    TbxMax.Text = MaxTemp.ToString();
+                }
             }
+        }
+
+        double MaxTemp = 0;
+        private void TbxMax_GotFocus(object sender, RoutedEventArgs e)
+        {
+            double.TryParse(TbxMax.Text, out MaxTemp);
         }
 
         private void TbxMax_LostFocus(object sender, RoutedEventArgs e)
         {
-            double.TryParse(TbxMax.Text, out double input);
-            double.TryParse(TbxMin.Text, out double min);
-            if (input > min)
-            {
-                MaxValue = input;
-                UpdateView();
-            }
+            TbxMax.Text = MaxTemp.ToString();
         }
 
         private void TbxMin_KeyUp(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Enter)
             {
-                TbxMin_LostFocus(null, null);
+                double.TryParse(TbxMin.Text, out double input);
+                double.TryParse(TbxMax.Text, out double max);
+                if (input < max)
+                {
+                    MinValue = input;
+                    UpdateView();
+                }
+                else
+                {
+                    TbxMin.Text = MinTemp.ToString();
+                }
             }
+        }
+
+        double MinTemp = 0;
+        private void TbxMin_GotFocus(object sender, RoutedEventArgs e)
+        {
+            double.TryParse(TbxMin.Text, out MinTemp);
         }
 
         private void TbxMin_LostFocus(object sender, RoutedEventArgs e)
         {
-            double.TryParse(TbxMin.Text, out double input);
-            double.TryParse(TbxMax.Text, out double max);
-            if (input < max)
-            {
-                MinValue = input;
-                UpdateView();
-            }
+            TbxMin.Text = MinTemp.ToString();
         }
-        //List<double> EqualizeHist(List<double> values, int grade)
-        //{
-        //    int[] mp = new int[grade];
-        //    foreach (var value in values)
-        //    {
-        //        mp[Convert.ToInt32(Math.Floor(value * grade))]++;
-        //    }
-        //    double[] graypro = new double[grade];
-        //    for (int i = 0; i < grade; i++)
-        //    {
-        //        graypro[i] = mp[i] / (values.Count);
 
-        //    }
-        //    double[] graysumpro = new double[grade];
-        //    graysumpro[0] = graypro[0];
-        //    for (int i = 1; i < grade; i++)
-        //    {
-        //        graysumpro[i] = graysumpro[i - 1] + graypro[i];
-
-        //    }
-        //    byte[] grayequ = new byte[grade];
-        //    for (int i = 0; i < grade; i++)
-        //    {
-        //        grayequ[i] = (byte)(graysumpro[i] * grade + 0.5);
-
-        //    }
-        //    //根据累计频率进行转换
-        //    List<double> temp = new List<double>(values.Count);
-        //    foreach (var value in values)
-        //    {
-        //        temp.Add(grayequ[value]];);
-        //    }
-        //    return temp;
-        //}
+        private void CmbCuvType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            MaxValue = double.MaxValue;
+            MinValue = double.MinValue;
+            UpdateView();
+        }
     }
 }

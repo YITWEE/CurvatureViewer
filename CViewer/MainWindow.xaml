@@ -10,7 +10,7 @@
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
-            <ColumnDefinition Width="120"/>
+            <ColumnDefinition Width="130"/>
         </Grid.ColumnDefinitions>
         <hx:Viewport3DX x:Name="Hv3dMain" EffectsManager="{Binding EffectsManager}" Camera="{Binding Camera}" MSAA="Eight" ShowCameraTarget="True"
                         ShowCoordinateSystem="True" ShowFrameRate="True" ShowViewCube="False" ShowTriangleCountInfo="True"
@@ -21,6 +21,7 @@
             <hx:AmbientLight3D Color="Gray"/>
             <hx:MeshGeometryModel3D Geometry="{Binding Geometry}" Material="{Binding Material}" RenderWireframe="{Binding IsChecked, ElementName=CbxWireframe}" WireframeColor="Black"/>
         </hx:Viewport3DX>
+        <TextBlock x:Name="TbkTitle" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,30,0,0" FontSize="24" FontWeight="Bold"/>
         <Grid Height="200" HorizontalAlignment="Left" Margin="18,0,0,0" Background="#19FFFFFF">
             <Grid.ContextMenu>
                 <ContextMenu>
@@ -56,21 +57,22 @@
             <Line X1="0" Y1="0" X2="20" Y2="0" Stroke="Black" Margin="0,160,0,0"  />
             <Line X1="0" Y1="0" X2="50" Y2="0" Stroke="Black" VerticalAlignment="Bottom" />
             <TextBox x:Name="TbxMax" Margin="22,3,5,0" MinWidth="28" Height="20" VerticalAlignment="Top" HorizontalAlignment="Left"
-                     KeyUp="TbxMax_KeyUp" LostFocus="TbxMax_LostFocus" BorderBrush="{x:Null}"/>
+                     KeyUp="TbxMax_KeyUp" GotFocus="TbxMax_GotFocus" LostFocus="TbxMax_LostFocus" BorderBrush="{x:Null}"/>
             <TextBlock x:Name="TbkMiddle" VerticalAlignment="Center" Margin="22,0,5,0"/>
             <TextBox x:Name="TbxMin" VerticalAlignment="Bottom" Margin="22,0,5,3" HorizontalAlignment="Left" MinWidth="28" Height="20"
-                     KeyUp="TbxMin_KeyUp" LostFocus="TbxMin_LostFocus" BorderBrush="{x:Null}"/>
+                     KeyUp="TbxMin_KeyUp" GotFocus="TbxMin_GotFocus" LostFocus="TbxMin_LostFocus" BorderBrush="{x:Null}"/>
         </Grid>
         <StackPanel Grid.Column="1" Orientation="Vertical" VerticalAlignment="Bottom" Margin="10">
             <Button x:Name="BtnInput" Height="20" Margin="5" Content="导入模型" Click="BtnInput_Click"/>
-            <CheckBox x:Name="CbxWireframe" Content="显示线框" Margin="5"/>
-            <ComboBox x:Name="CmbCuvType" Height="20" Margin="5" SelectedIndex="0" HorizontalContentAlignment="Center" IsEnabled="False">
+            <CheckBox x:Name="CbxWireframe" Content="  显示线框" Margin="4,8,5,2" Height="20"/>
+            <ComboBox x:Name="CmbCuvType" Height="20" Margin="5" SelectedIndex="0" HorizontalContentAlignment="Center" Padding="18,2,0,0"
+                      SelectionChanged="CmbCuvType_SelectionChanged">
                 <ComboBoxItem Content="高斯曲率"/>
                 <ComboBoxItem Content="平均曲率"/>
-                <ComboBoxItem Content="主曲率Min"/>
                 <ComboBoxItem Content="主曲率Max"/>
+                <ComboBoxItem Content="主曲率Min"/>
             </ComboBox>
-            <Button x:Name="BtnConfirm" Height="20" Margin="5" Content="计算曲率" Click="BtnConfirm_Click"/>
+            <Button x:Name="BtnConfirm" Height="20" Margin="5,5,5,12" Content="计算曲率" Click="BtnConfirm_Click"/>
         </StackPanel>
     </Grid>
 </Window>

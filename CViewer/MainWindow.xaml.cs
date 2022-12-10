@@ -5,6 +5,7 @@ using SharpDX;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -68,28 +69,29 @@ namespace CViewer
                             OriginalMesh = builder.Meshes.First();
                         }
                         MeshNormals.QuickCompute(OriginalMesh);
-                        Vector3Collection points = new Vector3Collection(OriginalMesh.Vertices().ToList().ConvertAll(
-                            v => new Vector3(Convert.ToSingle(v.x), Convert.ToSingle(v.y), Convert.ToSingle(v.z))));
-                        IntCollection triangleIndices = new IntCollection();
-                        Color4Collection colors = new Color4Collection();
-                        Vector3Collection normals = new Vector3Collection(OriginalMesh.NormalsBuffer.Count() / 3);
-                        int NormalsCount = OriginalMesh.NormalsBuffer.Count() / 3;
-                        for (int i = 0; i < NormalsCount; i++)
-                        {
-                            normals.Add(new Vector3(OriginalMesh.NormalsBuffer[i * 3], OriginalMesh.NormalsBuffer[i * 3 + 1], OriginalMesh.NormalsBuffer[i * 3 + 2]));
-                        }
+                        Vector3Collection points = new Vector3Collection(OriginalMesh.TriangleCount * 3);                        
+                        Vector3Collection normals = new Vector3Collection(OriginalMesh.TriangleCount * 3);
 
-                        foreach (Index3i index3 in OriginalMesh.Triangles())
+                        var a = new Vector3d();
+                        var b = new Vector3d();
+                        var c = new Vector3d();
+                        var n = new Vector3d();
+                        foreach (int index in OriginalMesh.TriangleIndices())
                         {
-                            triangleIndices.Add(index3.a);
-                            triangleIndices.Add(index3.b);
-                            triangleIndices.Add(index3.c);
+                            OriginalMesh.GetTriVertices(index, ref a, ref b, ref c);
+                            points.Add(new Vector3(Convert.ToSingle(a.x), Convert.ToSingle(a.y), Convert.ToSingle(a.z)));
+                            points.Add(new Vector3(Convert.ToSingle(b.x), Convert.ToSingle(b.y), Convert.ToSingle(b.z)));
+                            points.Add(new Vector3(Convert.ToSingle(c.x), Convert.ToSingle(c.y), Convert.ToSingle(c.z)));
+                            n = OriginalMesh.GetTriNormal(index);
+                            normals.Add(new Vector3(Convert.ToSingle(n.x), Convert.ToSingle(n.y), Convert.ToSingle(n.z)));
+                            normals.Add(new Vector3(Convert.ToSingle(n.x), Convert.ToSingle(n.y), Convert.ToSingle(n.z)));
+                            normals.Add(new Vector3(Convert.ToSingle(n.x), Convert.ToSingle(n.y), Convert.ToSingle(n.z)));
                         }
 
                         MeshGeometry3D geometry = new MeshGeometry3D();
                         geometry.Positions = points;
                         geometry.Normals = normals;
-                        geometry.TriangleIndices = triangleIndices;
+                        geometry.TriangleIndices = new IntCollection(Enumerable.Range(0, points.Count()));
 
                         ViewModel.Geometry.ClearAllGeometryData();
                         ViewModel.Geometry = geometry;
@@ -259,7 +261,14 @@ namespace CViewer
                         SumVector += (cotA + cotB) * (VectorJ - VectorI);
                         SumArea += mesh.GetTriArea(tris.a);
                     }
-                    Curvatures.Add((SumVector / (2 * (SumArea / 3))).Length / 2);
+                    if (SumArea == 0)
+                    {
+                        Curvatures.Add(double.PositiveInfinity);
+                    }
+                    else
+                    {
+                        Curvatures.Add((SumVector / (2 * (SumArea / 3))).Length / 2);
+                    }
                 }
                 else
                 {
@@ -518,6 +527,11 @@ namespace CViewer
             MaxValue = double.MaxValue;
             MinValue = double.MinValue;
             UpdateView();
+        }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+            this.Title += " " + Assembly.GetExecutingAssembly().GetName().Version.ToString(3);
         }
     }
 }
